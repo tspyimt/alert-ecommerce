@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+var debug = require('debug')('ElasticSearch');
+var app = require('../app');
+
+var server = require('http').Server(app);
+var io = require('socket.io')(server);
+
+app.set('port', process.env.PORT || 4000);
+
+// 404 error
+server.listen(app.get('port'), function() {
+  console.log("listening at port " + app.get('port'));
+});
+
+io.on('connection', function (socket) {
+  socket.emit('news', { hello: 'world' });
+  socket.on('my other event', function (data) {
+    console.log(data);
+  });
+});
