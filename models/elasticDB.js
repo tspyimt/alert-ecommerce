@@ -29,7 +29,8 @@ var settings = {
 clientElastic.indices.create({
     index: 'nodes',
     body: {
-        settings: settings
+        settings: settings,
+        "_all" : {"enabled" : true}
     }
 }, function(err){
     if(err) console.log(err);
@@ -72,15 +73,15 @@ var insertDB = function(data, callback){
         clientElastic.index(query, function(err){
             if(err){
                 console.log('Insert Elastic Error: '+ JSON.stringify(query));
-                callback(false);
+                return callback(false);
             }else{
                 console.log('Insert Elastic successfully');
-                callback(true);
+                return callback(true);
             }
         });
     }catch(ex){
         console.log('Insert Elastic Error: '+ JSON.stringify(data));
-        callback(false);
+        return callback(false);
     }
 }
 /**
@@ -101,15 +102,15 @@ var deleteDB = function(data, callback){
         clientElastic.delete(query, function(err){
             if(err){
                 console.log('Delete Elastic Error: '+ JSON.stringify(query));
-                callback(false);
+                return callback(false);
             }else{
                 console.log('Delete Elastic successfully');
-                callback(true);
+                return callback(true);
             }
         });
     }catch(ex){
         console.log('Delete Elastic Error: '+ JSON.stringify(data));
-        callback(false);
+        return callback(false);
     }
 }
 /**
@@ -130,19 +131,121 @@ var searchDB = function(data, callback){
         clientElastic.search(query, function(err, data){
             if(err){
                 console.log('Search Elastic Error: '+ JSON.stringify(query));
-                callback(false);
+                return callback(false);
             }else{
                 console.log('Search Elastic successfully');
-                callback(data);
+                return callback(data);
             }
         });
     }catch(ex){
         console.log('Search Elastic Error: '+ JSON.stringify(data));
-        callback(false);
+        return callback(false);
+    }
+}
+/**
+ * Get schedule by Id
+ *
+ * @method searchDB
+ * @param {String} Id of object
+ * @return {Object} Returns schedule
+ */
+var getScheduleById = function(id, callback){
+    if(id){
+        clientElastic.search({
+            index: 'schedule',
+            id: id
+        }, function(err, result){
+            if(err){
+                console.log('getScheduleById: Error id-'+id);
+                return callback(false);
+            }else{
+                return callback(result);
+            }
+        })
+    }else{
+        console.log('getScheduleById: Missing id');
+        return callback(false);
+    }
+}
+/**
+ * Create schedule to DB
+ *
+ * @method searchDB
+ * @param {String} Id of object
+ * @return {Boolean} Returns true for success
+ */
+var createSchedule = function(userId, tags, callback){
+    if(userId && tags){
+        client.index({
+            index: 'schedule',
+            body: {
+                userId: userId,
+                tags: tags
+            }
+        }, function(err){
+            if(err){
+                console.log(err);
+                return callback(false);
+            }else{
+                return callback(true);
+            }
+        });
+    }else{
+        console.log('createSchedule: Missing params');
+        return callback(false);
+    }
+}
+/**
+ * Create schedule to DB
+ *
+ * @method searchDB
+ * @param {String} Id of object
+ * @return {Boolean} Returns true for success
+ */
+var deleteSchedule = function(scheduleId, callback){
+    if(scheduleId){
+        clientElastic.delete({
+            index: 'schedule',
+            id: scheduleId
+        }, function(err){
+            if(err){
+                console.log('deleteSchedule: Error');
+                console.log(err);
+                return callback(false);
+            }else{
+                return callback(true);
+            }
+        })
+    }else{
+        console.log('deleteSchedule: Missing params');
+        return callback(false);
+    }
+}
+/**
+ * Send notification when new node
+ *
+ * @method sendNotiWhenNewNode
+ * @param {object} Node, which have created
+ * @return {Array} Returns array user send notification
+ */
+var sendNotiWhenNewNode = function(node, callback){
+    if(node && node.content){
+        clientElastic.search({
+            index: 'schedule',
+            body: {
+
+            }
+        });
+    }else{
+        console.log('Missing params');
+        return callback(false);
     }
 }
 module.exports = {
     insertDB : insertDB,
     deleteDB : deleteDB,
-    searchDB : searchDB
+    searchDB : searchDB,
+    getScheduleById: getScheduleById,
+    createSchedule: createSchedule,
+    deleteSchedule: deleteSchedule
 }
