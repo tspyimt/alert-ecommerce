@@ -1,74 +1,23 @@
 var express = require('express');
 var router = express.Router();
-var clientSearch = require('../config/settings').clientElastic;
+var clientSearch = require('../models/elasticDB');
 
 router.post('/insert', function(req, res){
-    var query;
-    try{
-        if(req.body.queryTest){
-            query = JSON.parse(req.body.queryTest);
-        }else{
-            query = req.body;
-        }
-        clientSearch.index(query, function(err){
-            if(err){
-                console.log('Insert Elastic Error: '+ JSON.stringify(query));
-                res.send(false);
-            }else{
-                console.log('Insert Elastic successfully');
-                res.send(true);
-            }
-        });
-    }catch(ex){
-        console.log('Insert Elastic Error: '+ JSON.stringify(query));
-        res.send(false);
-    }
+    clientSearch.insertDB(req.body, function(status){
+        res.send(status);
+    })
 });
 
 router.post('/delete', function(req, res){
-    var query;
-    try{
-        if(req.body.queryTest){
-            query = JSON.parse(req.body.queryTest);
-        }else{
-            query = req.body;
-        }
-        clientSearch.delete(query, function(err){
-            if(err){
-                console.log('Delete Elastic Error: '+ JSON.stringify(query));
-                res.send(false);
-            }else{
-                console.log('Delete Elastic successfully');
-                res.send(true);
-            }
-        });
-    }catch(ex){
-        console.log('Delete Elastic Error: '+ JSON.stringify(query));
-        res.send(false);
-    }
+    clientSearch.deleteDB(req.body, function(status){
+        res.send(status);
+    })
 });
 
 router.post('/search', function(req, res){
-    var query;
-    try{
-        if(req.body.queryTest){
-            query = JSON.parse(req.body.queryTest);
-        }else{
-            query = req.body;
-        }
-        clientSearch.search(query, function(err){
-            if(err){
-                console.log('Search Elastic Error: '+ JSON.stringify(query));
-                res.send(false);
-            }else{
-                console.log('Search Elastic successfully');
-                res.send(true);
-            }
-        });
-    }catch(ex){
-        console.log('Search Elastic Error: '+ JSON.stringify(query));
-        res.send(false);
-    }
+    clientSearch.searchDB(req.body, function(status){
+        res.send(status);
+    })
 });
 
 module.exports = {
