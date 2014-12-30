@@ -3,9 +3,20 @@ var router = express.Router();
 var clientSearch = require('../models/elasticDB');
 
 router.post('/insert', function(req, res){
-    clientSearch.insertDB(req.body, function(status){
-        res.send(status);
-    })
+    try{
+        var query;
+        if(req.body.queryTest){
+            query = JSON.parse(req.body.queryTest);
+        }else{
+            query = req.body;
+        }
+        clientSearch.insertDB(query, function(status){
+            res.send(status);
+        })
+    }catch(ex){
+        console.log(ex);
+        res.send(false);
+    }
 });
 
 router.post('/delete', function(req, res){
@@ -28,7 +39,7 @@ router.get('/schedule/getById:id', function(req, res){
 
 router.post('/schedule/add', function(req, res){
     if(req.body.userId && req.body.tags){
-        clientSearch.createSchedule(req.body.userId, req.body.tags, function(status){
+        clientSearch.createSchedule(req.body, function(status){
             res.send(status);
         })
     }else{
@@ -41,6 +52,12 @@ router.get('/schedule/delete:id', function(req, res){
     clientSearch.deleteSchedule(req.param('id'), function(data){
         res.send(data);
     });
+});
+
+router.post('/testNode', function(req, res){
+    clientSearch.sendNotiWhenNewNode(req.body.nodeId, function(status){
+        res.send(status);
+    })
 });
 
 module.exports = {

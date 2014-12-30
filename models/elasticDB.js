@@ -1,3 +1,4 @@
+var async = require('async');
 var elasticsearch = require('elasticsearch');
 var clientElastic = new elasticsearch.Client({
 //host: 'localhost:9200',
@@ -54,6 +55,7 @@ clientElastic.indices.create({
     if(err) console.log(err);
     console.log('Settings notification finished');
 });
+
 /**
  * Insert object to database.
  * If input have id which is exits, this'll update object to DB
@@ -62,28 +64,22 @@ clientElastic.indices.create({
  * @param {Object} syntax to insert object to DB
  * @return {Boolean} Returns true on success
  */
-var insertDB = function(data, callback){
-    var query;
-    try{
-        if(req.body.queryTest){
-            query = JSON.parse(data);
+var insertDB = function(query, callback){
+    clientElastic.index(query, function(err, response){
+        if(err){
+            console.log('Insert Elastic Error: '+ JSON.stringify(query));
+            return callback(false);
         }else{
-            query = data;
-        }
-        clientElastic.index(query, function(err){
-            if(err){
-                console.log('Insert Elastic Error: '+ JSON.stringify(query));
-                return callback(false);
-            }else{
-                console.log('Insert Elastic successfully');
-                return callback(true);
+            console.log('Insert Elastic successfully');
+            if(response._index === 'nodes'){
+                sendNotiWhenNewNode(response._id, function(){});
             }
-        });
-    }catch(ex){
-        console.log('Insert Elastic Error: '+ JSON.stringify(data));
-        return callback(false);
-    }
+            console.log(response);
+            return callback(true);
+        }
+    });
 }
+
 /**
  * Delete object by ID to database.
  *
@@ -91,28 +87,18 @@ var insertDB = function(data, callback){
  * @param {Object} syntax to delete object by Id to DB
  * @return {Boolean} Returns true on success
  */
-var deleteDB = function(data, callback){
-    var query;
-    try{
-        if(req.body.queryTest){
-            query = JSON.parse(data);
+var deleteDB = function(query, callback){
+    clientElastic.delete(query, function(err){
+        if(err){
+            console.log('Delete Elastic Error: '+ JSON.stringify(query));
+            return callback(false);
         }else{
-            query = data;
+            console.log('Delete Elastic successfully');
+            return callback(true);
         }
-        clientElastic.delete(query, function(err){
-            if(err){
-                console.log('Delete Elastic Error: '+ JSON.stringify(query));
-                return callback(false);
-            }else{
-                console.log('Delete Elastic successfully');
-                return callback(true);
-            }
-        });
-    }catch(ex){
-        console.log('Delete Elastic Error: '+ JSON.stringify(data));
-        return callback(false);
-    }
+    });
 }
+
 /**
  * Search object
  *
@@ -120,28 +106,18 @@ var deleteDB = function(data, callback){
  * @param {Object} syntax to search
  * @return {Object} Returns result for search
  */
-var searchDB = function(data, callback){
-    var query;
-    try{
-        if(req.body.queryTest){
-            query = JSON.parse(data);
+var searchDB = function(query, callback){
+    clientElastic.search(query, function(err, data){
+        if(err){
+            console.log('Search Elastic Error: '+ JSON.stringify(query));
+            return callback(false);
         }else{
-            query = data;
+            console.log('Search Elastic successfully');
+            return callback(data);
         }
-        clientElastic.search(query, function(err, data){
-            if(err){
-                console.log('Search Elastic Error: '+ JSON.stringify(query));
-                return callback(false);
-            }else{
-                console.log('Search Elastic successfully');
-                return callback(data);
-            }
-        });
-    }catch(ex){
-        console.log('Search Elastic Error: '+ JSON.stringify(data));
-        return callback(false);
-    }
+    });
 }
+
 /**
  * Get schedule by Id
  *
@@ -167,6 +143,7 @@ var getScheduleById = function(id, callback){
         return callback(false);
     }
 }
+
 /**
  * Create schedule to DB
  *
@@ -174,19 +151,25 @@ var getScheduleById = function(id, callback){
  * @param {String} Id of object
  * @return {Boolean} Returns true for success
  */
-var createSchedule = function(userId, tags, callback){
-    if(userId && tags){
-        client.index({
+var createSchedule = function(info, callback){
+    if(info.userId && info.tags && info.type){
+        clientElastic.index({
             index: 'schedule',
+            type: 'schedule',
             body: {
-                userId: userId,
-                tags: tags
+                userId: info.userId,
+                tags: info.tags,
+                type: info.type,
+                time: info.time
             }
         }, function(err){
             if(err){
                 console.log(err);
                 return callback(false);
             }else{
+                if(info.type === "Reservation"){
+
+                }
                 return callback(true);
             }
         });
@@ -195,6 +178,7 @@ var createSchedule = function(userId, tags, callback){
         return callback(false);
     }
 }
+
 /**
  * Create schedule to DB
  *
@@ -221,6 +205,7 @@ var deleteSchedule = function(scheduleId, callback){
         return callback(false);
     }
 }
+
 /**
  * Send notification when new node
  *
@@ -228,16 +213,137 @@ var deleteSchedule = function(scheduleId, callback){
  * @param {object} Node, which have created
  * @return {Array} Returns array user send notification
  */
-var sendNotiWhenNewNode = function(node, callback){
-    if(node && node.content){
+var sendNotiWhenNewNode = function(nodeId, callback){
+    clientElastic.search({
+        index: 'nodes',
+        id: nodeId
+    }, function(err, result){
+        if(err){
+            console.log(err);
+            return callback(false);
+        }else{
+            if(result.hits.hits && result.hits.hits[0]){
+                var node = result.hits.hits[0];
+                clientElastic.search({
+                    index: 'schedule',
+                    type: 'schedule',
+                    body: {
+                        query: {
+                            "bool": {
+                                "must": [
+                                    { "match": { "tags": node._source.content }},
+                                    { "match": { "type": 'ASAP'}}
+                                ]
+                            }
+                        }
+                    }
+                }, function(err, result){
+                    if(err){
+                        console.log('sendNotiWhenNewNode: '+JSON.stringify(node));
+                        console.log(err);
+                        return callback(false);
+                    }else{
+                        if(result.hits.hits.length > 0){
+                            console.log(result.hits.hits);
+                            async.forEachLimit(result.hits.hits, 50, function(hit, cb){
+                                insertDB({
+                                    index: 'notification',
+                                    type: 'notification',
+                                    body: {
+                                        userId: hit._source.userId,
+                                        nodes: node._source,
+                                        date: new Date()
+                                    }
+                                }, function(status){
+                                    cb();
+                                });
+                            }, function(){
+                                return callback(true);
+                            });
+                        }else{
+                            console.log('sendNotiWhenNewNode: no result');
+                            return callback(false);
+                        }
+                    }
+                });
+            }else{
+                return callback(false);
+            }
+        }
+    });
+}
+
+/**
+ * Create cronjob to create notification for userId
+ *
+ * @method createCronJobToUpdateNoti
+ * @param {Date} Time to create cronjob
+ * @param {String} Id id schedule
+ * @return {Boolean} Return success or not
+ */
+function createCronJobToUpdateNoti(scheduleId, callback){
+    if(scheduleId){
         clientElastic.search({
             index: 'schedule',
-            body: {
-
+            id: scheduleId
+        }, function(err, result){
+            if(err){
+                console.log(err);
+                return callback(false);
+            }else{
+                if(result.hits.hits && result.hits.hits[0]){
+                    var schedule = result.hits.hits[0];
+                    clientElastic.search({
+                        index: "nodes",
+                        body: {
+                            query: {
+                                "bool": {
+                                    "must": [
+                                        { "match": { "content": schedule.tags }}
+                                    ]
+                                }
+                            },
+                            "highlight" : {
+                                "fields" : {
+                                    "content" : {}
+                                }
+                            }
+                        }
+                    }, function(err, result){
+                        if(err){
+                            console.log(err);
+                            return callback(false);
+                        }else{
+                            if(result.hits.hits.length > 0){
+                                var listNode = [];
+                                async.forEachLimit(result.hits.hits, 50, function(hit, cb){
+                                    listNode.push(hit._source);
+                                    cb();
+                                }, function(){
+                                    insertDB({
+                                        index: 'notification',
+                                        type: 'notification',
+                                        body: {
+                                            userId: schedule._source.userId,
+                                            nodes: listNode,
+                                            date: new Date()
+                                        }
+                                    }, function(status){
+                                        return callback(status);
+                                    });
+                                });
+                            }else{
+                                return callback(false);
+                            }
+                        }
+                    });
+                }else{
+                    return callback(false);
+                }
             }
         });
     }else{
-        console.log('Missing params');
+        console.log('createCronJobToUpdateNoti: Missing param');
         return callback(false);
     }
 }
@@ -247,5 +353,6 @@ module.exports = {
     searchDB : searchDB,
     getScheduleById: getScheduleById,
     createSchedule: createSchedule,
-    deleteSchedule: deleteSchedule
+    deleteSchedule: deleteSchedule,
+    sendNotiWhenNewNode: sendNotiWhenNewNode
 }
